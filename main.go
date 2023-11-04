@@ -141,6 +141,46 @@ func leafInsert(old BNode, new BNode, index uint16, key []byte, value []byte) {
 	bnodeAppendRange(new, old, index+1, index, old.getNumberOfKeys()-index)
 }
 
+func leafUpdate(old BNode, new BNode, index uint16, key []byte, value []byte) {
+	new.setHeaders(BNODE_LEAF, old.getNumberOfKeys())
+	bnodeAppendRange(new, old, 0, 0, index)
+	bnodeAppendKV(new, 0, key, value, index)
+	bnodeAppendRange(new, old, index+1, index+1, old.getNumberOfKeys()-(index+1))
+}
+
+// part of treeInsert(): KV insert to an internal node
+func nodeInsert(tree *BTree, new BNode, node BNode, index uint16, key []byte, value []byte) {
+	nodePointer := node.getPointer(index)
+	child := tree.get(nodePointer)
+	tree.del(nodePointer)
+	child = treeInsert(tree, child, key, value)
+	//todo 4 nov 2023 - go from here
+}
+
+// The main function to insert a key
+func treeInsert(tree *BTree, node BNode, key []byte, value []byte) BNode {
+	// the result node.
+	// it's allowed to be bigger than 1 page and will be split if so
+	new := BNode{data: make([]byte, 2*BTREE_PAGE_SIZE)}
+	// find where to insert the key
+	index := nodeLookUp(node, key)
+	//act depending on the node type
+	switch node.getNodeType() {
+	case BNODE_LEAF:
+		if bytes.Equal(key, node.getKey(index)) {
+			leafUpdate(node, new, index, key, value)
+		} else {
+			leafInsert(node, new, index+1, key, value)
+		}
+	case BNODE_NODE:
+		nodeInsert(tree, new, node, index, key, value)
+	default:
+		panic("Bad node type!")
+	}
+
+	return new
+}
+
 func bnodeAppendRange(new BNode, old BNode, dstNew uint16, srcOld uint16, n uint16) {
 	if dstNew+n > n {
 		panic("nodeAppendRange dstNew+n is greater than n")
