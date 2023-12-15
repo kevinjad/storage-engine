@@ -161,6 +161,20 @@ func nodeInsert(tree *BTree, new BNode, node BNode, index uint16, key []byte, va
 	nodeReplaceKidN(tree, new, node, index, splited[:nsplit]...)
 }
 
+// replace a link with multiple links
+func nodeReplaceKidN(
+	tree *BTree, new BNode, old BNode, idx uint16,
+	kids ...BNode,
+) {
+	inc := uint16(len(kids))
+	new.setHeaders(BNODE_NODE, old.getNumberOfKeys()+inc-1)
+	bnodeAppendRange(new, old, 0, 0, idx)
+	for i, node := range kids {
+		bnodeAppendKV(new, tree.new(node), node.getKey(0), nil, idx+uint16(i))
+	}
+	bnodeAppendRange(new, old, idx+inc, idx+1, old.getNumberOfKeys()-(idx+1))
+}
+
 // split a bigger-than-allowed node into two.
 // the second node always fits on a page.
 func nodeSplit2(left BNode, right BNode, old BNode) {
@@ -188,7 +202,9 @@ func nodeSplit3(old BNode) (uint16, [3]BNode) {
 	leftleft := BNode{make([]byte, BTREE_PAGE_SIZE)}
 	middle := BNode{make([]byte, BTREE_PAGE_SIZE)}
 	nodeSplit2(leftleft, middle, left)
-	assert(leftleft.nbytes() <= BTREE_PAGE_SIZE)
+	if leftleft.nbytes() > BTREE_PAGE_SIZE {
+		panic("leftleft.nbytes() > BTREE_PAGE_SIZE in nodesplit3")
+	}
 	return 3, [3]BNode{leftleft, middle, right}
 }
 
